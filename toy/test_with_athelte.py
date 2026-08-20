@@ -12,7 +12,7 @@ def run():
         algorithm_id="dqn",
         action_space=env.action_space,
         observation_space=env.observation_space["agent"],
-        seed=42, # optional,
+        # seed=42, # optional,
         device="cuda" if torch.cuda.is_available() else "mps" if torch.backends.mps.is_available() else "cpu"
     )
 
@@ -51,7 +51,7 @@ def run():
     env.close()
     return overfitting,action
 
-def main(times=1000):
+def main(times=100):
     gym.register(
         id="MyGridWorld-v0",
         entry_point="env:GridWorldEnv",

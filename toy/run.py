@@ -73,7 +73,7 @@ def run():
     train_environment.close()
     return overfitting,action
 
-def main(times=1000):
+def main(times=100):
     gym.register(
         id="MyGridWorld-v0",
         entry_point="env:GridWorldEnv",
