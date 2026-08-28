@@ -1,19 +1,19 @@
 from agent import make_agent
-from env import make_procgen_env
+from env import env_factory, N_ENVS
+from stable_baselines3.common.vec_env import SubprocVecEnv, VecMonitor
 
 
 def main():
-    env = make_procgen_env(
-        game="maze",
-        start_level=0,
-        num_levels=200,
-        distribution_mode="easy",
+    env = SubprocVecEnv(
+        [env_factory(rank) for rank in range(N_ENVS)],
+        start_method="spawn",
     )
+    env = VecMonitor(env)
 
     model = make_agent(env, seed=42)
 
     model.learn(
-        total_timesteps=1_000_00,
+        total_timesteps=25_000_000,
         progress_bar=True,
     )
 

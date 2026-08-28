@@ -54,6 +54,21 @@ def make_procgen_env(
 
     return ProcgenGymnasiumAdapter(legacy_env)
 
+N_ENVS = 16
+BASE_SEED = 42
+
+def env_factory(rank):
+    def create_env():
+        return make_procgen_env(
+            game="coinrun",
+            start_level=0,
+            num_levels=200,
+            distribution_mode="easy",
+            seed=BASE_SEED + rank,
+        )
+    return create_env
+
+
 if __name__ == "__main__":
     from stable_baselines3.common.env_checker import check_env
 
