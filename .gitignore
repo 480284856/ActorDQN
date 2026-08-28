@@ -3,3 +3,4 @@ ZZBasement/
 __pycache__/
 .DS_Store
 .venv/
+logs/

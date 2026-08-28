@@ -64,6 +64,7 @@ def env_factory(rank):
             start_level=0,
             num_levels=200,
             distribution_mode="easy",
+            # each environment will sample levels differently from pool
             seed=BASE_SEED + rank,
         )
     return create_env
