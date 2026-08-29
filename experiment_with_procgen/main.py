@@ -1,24 +1,36 @@
 from agent import make_agent
 from env import env_factory, N_ENVS
 from stable_baselines3.common.vec_env import SubprocVecEnv, VecMonitor
-
+from stable_baselines3.common.callbacks import EvalCallback
 
 def main():
-    env = SubprocVecEnv(
-        [env_factory(rank) for rank in range(N_ENVS)],
+    train_env = SubprocVecEnv(
+        [env_factory(rank, 'coinrun', 200) for rank in range(N_ENVS)],
         start_method="spawn",
     )
-    env = VecMonitor(env)
+    eval_env = SubprocVecEnv(
+            [env_factory(rank, 'coinrun', 200) for rank in range(N_ENVS)],
+            start_method="spawn",
+        )
+    train_env = VecMonitor(train_env)
+    eval_env = VecMonitor(eval_env)
 
-    model = make_agent(env, seed=42)
+    train_freq = 4
+    eval_callback = EvalCallback(eval_env, best_model_save_path="./logs/",
+                             log_path="./logs/", eval_freq=1000*train_freq+1,
+                             deterministic=True, render=False)
+    
+    model = make_agent(train_env, seed=42)
 
     model.learn(
         total_timesteps=25_000_000,
         progress_bar=True,
+        callback=eval_callback
     )
 
     model.save("checkpoints/dqn_procgen_maze")
-    env.close()
+    train_env.close()
+    eval_env.close()
 
 
 if __name__ == "__main__":
