@@ -27,6 +27,12 @@ class ProcgenGymnasiumAdapter(gymnasium.Env):
 
     def step(self, action):
         obs, reward, done, info = self.env.step(action)
+
+        if done:
+            info["is_success"] = bool(
+                info.get("prev_level_complete", False)
+            )
+
         return obs, float(reward), bool(done), False, info
 
     def render(self):

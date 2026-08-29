@@ -12,8 +12,8 @@ def main():
             [env_factory(rank, 'coinrun', 200) for rank in range(N_ENVS)],
             start_method="spawn",
         )
-    train_env = VecMonitor(train_env)
-    eval_env = VecMonitor(eval_env)
+    train_env = VecMonitor(train_env, info_keywords=("is_success",))
+    eval_env = VecMonitor(eval_env, info_keywords=("is_success",))
 
     train_freq = 4
     eval_callback = EvalCallback(eval_env, best_model_save_path="./logs/",
