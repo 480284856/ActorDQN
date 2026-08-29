@@ -18,6 +18,7 @@ def main():
     train_freq = 4
     eval_callback = EvalCallback(eval_env, best_model_save_path="./logs/",
                              log_path="./logs/", eval_freq=1000*train_freq+1,
+                             n_eval_episodes=1000,
                              deterministic=True, render=False)
     
     model = make_agent(train_env, seed=42)
