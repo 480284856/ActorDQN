@@ -9,7 +9,7 @@ def main():
         start_method="spawn",
     )
     eval_env = SubprocVecEnv(
-            [env_factory(rank, 'coinrun', 200) for rank in range(N_ENVS)],
+            [env_factory(rank, 'coinrun', 0) for rank in range(N_ENVS)],
             start_method="spawn",
         )
     train_env = VecMonitor(train_env, info_keywords=("is_success",))
