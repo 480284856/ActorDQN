@@ -7,8 +7,8 @@ def make_agent(env, seed=42, tensorboard_log="./logs/"):
         env=env,
         learning_rate=1e-4,
         buffer_size=100_000,
-        learning_starts=64,
-        batch_size=64,                    # how many sample should be sampled from the buffer at each optimization stage.
+        learning_starts=128,
+        batch_size=128,                    # how many sample should be sampled from the buffer at each optimization stage.
         gamma=0.99,
         train_freq=4,                      # the interval of steps between two training stages.
         gradient_steps=2,                  # In each training stage, how many optimization steps should be performed.

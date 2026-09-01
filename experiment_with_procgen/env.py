@@ -61,17 +61,16 @@ def make_procgen_env(
     return ProcgenGymnasiumAdapter(legacy_env)
 
 N_ENVS = 16
-BASE_SEED = 42
 
-def env_factory(rank, game_name, num_levels):
+def env_factory(rank, game_name, start_level, num_levels, base_seed):
     def create_env():
         return make_procgen_env(
             game=game_name,
-            start_level=0,
+            start_level=start_level,
             num_levels=num_levels,
             distribution_mode="easy",
             # each environment will sample levels differently from pool
-            seed=BASE_SEED + rank,
+            seed=base_seed + rank,
         )
     return create_env
 
