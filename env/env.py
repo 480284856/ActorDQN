@@ -1,122 +1,104 @@
 import os
+from typing import Tuple
+
 import numpy as np
 import gymnasium as gym
-from tqdm import tqdm
-from visualization import plot_maze
 
 try:
     from .util import (
-        EMPTY,
-        create_rng,
-        create_wall_grid,
-        get_logical_cells,
-        choose_random_position,
-        choose_lattice_offsets,
-        carve_passages,
-        get_empty_positions,
-        find_reachable_positions,
-        choose_goal_position,
-        place_player_and_goal,
-        validate_player_goal_path,
-        filter_repeated_mazes
+        generate_all_single_solution_mazes,
+        generate_maze_variations,
     )
 except ImportError:  # Support running this file directly.
-    from util import (
-        EMPTY,
-        create_rng,
-        create_wall_grid,
-        get_logical_cells,
-        choose_random_position,
-        choose_lattice_offsets,
-        carve_passages,
-        get_empty_positions,
-        find_reachable_positions,
-        choose_goal_position,
-        place_player_and_goal,
-        validate_player_goal_path,
-        filter_repeated_mazes
-    )
+    from util import generate_all_single_solution_mazes, generate_maze_variations
+
 
 class Maze(gym.Env):
-    def __init__(self, width=10, height=10, total_samples=1000):
+    def __init__(self, width=5, height=5):
         self.width = width
         self.height = height
-        self.total_samples = total_samples
 
         self.observation_space = ...
         self.action_space = ...
 
-        self.generate_maze()
+        # self.generate_maze()
 
-    def _generate_maze(self, seed):
-        """
-        Generate one deterministic maze from `seed`.
+    def generate_maze(self,):
+        '''
+        Here is the description of the maze generation process:
+            https://ljp0vuj4fr1r.jp.larksuite.com/wiki/QyQJwfSRBiuvXZk8kXpjTxKmpEe?from=from_copylink
 
         Cell meanings:
             0 = empty
             1 = wall
             2 = player
             3 = goal
+        '''
+        original_set = self.pathfinding()
+        original_training_set, original_evaluation_set = self.train_test_split(original_set, test_size=0.2, random_state=42)
+
+        self.training_mazes = self.maze_variation(original_training_set)
+        self.evaluation_mazes = self.maze_variation(original_evaluation_set)
+
+    def pathfinding(self) -> np.ndarray:
         """
-        rng = create_rng(seed)
-        maze = create_wall_grid(self.width, self.height)
+        Generate every maze whose open cells form one unique player-goal path.
 
-        row_offset, col_offset = choose_lattice_offsets(
-            self.width,
-            self.height,
-            rng,
+        For detailed description, please refer to the following link:
+            https://ljp0vuj4fr1r.jp.larksuite.com/wiki/QyQJwfSRBiuvXZk8kXpjTxKmpEe#share-SDypdpOnto1ZJ1xoNO8jeEj5pIc
+
+        Returns:
+            3D numpy array of shape (num_mazes, height, width) containing the generated mazes.
+        """
+        return generate_all_single_solution_mazes(self.width, self.height)
+
+    def train_test_split(self, mazes: np.ndarray, test_size: float = 0.2, random_state: int = 42) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Split the generated mazes into training and evaluation sets.
+
+        Args:
+            mazes: 3D numpy array of shape (num_mazes, height, width) containing the generated mazes.
+            test_size: Proportion of the dataset to include in the evaluation set.
+        """
+        rng = np.random.default_rng(random_state)
+        num_mazes = mazes.shape[0]
+        indices = rng.permutation(num_mazes)
+        split_idx = int(num_mazes * (1 - test_size))
+        train_indices = indices[:split_idx]
+        test_indices = indices[split_idx:]
+        return mazes[train_indices], mazes[test_indices]
+
+    def maze_variation(
+        self,
+        mazes: np.ndarray,
+        random_state: int | None = None,
+    ) -> np.ndarray:
+        """
+        Generate variations of the given mazes to increase diversity.
+
+        For detailed description, please refer to the following link:
+            https://ljp0vuj4fr1r.jp.larksuite.com/wiki/QyQJwfSRBiuvXZk8kXpjTxKmpEe#share-K32KdcnikoxKdoxjQ5wjFpecpJe
+
+        Args:
+            mazes: 3D numpy array of shape (num_mazes, height, width) containing the generated mazes.
+            random_state: Optional seed for reproducible variations.
+
+        Returns:
+            3D numpy array of shape (num_variations, height, width) containing the varied mazes.
+        """
+        return generate_maze_variations(
+            mazes,
+            expected_shape=(self.height, self.width),
+            random_state=random_state,
         )
-        logical_cells = get_logical_cells(
-            self.width,
-            self.height,
-            row_offset,
-            col_offset,
-        )
-        generation_start = choose_random_position(logical_cells, rng)
-        carve_passages(maze, logical_cells, generation_start, rng)
-
-        # The player's position is independent of the DFS generation start.
-        empty_positions = get_empty_positions(maze)
-        player_position = choose_random_position(empty_positions, rng)
-
-        reachable_positions = find_reachable_positions(
-            maze,
-            player_position,
-            passable_values=(EMPTY,),
-        )
-        goal_position = choose_goal_position(
-            reachable_positions,
-            player_position,
-            rng,
-        )
-
-        maze = place_player_and_goal(
-            maze,
-            player_position,
-            goal_position,
-        )
-        validate_player_goal_path(maze, player_position, goal_position)
-
-        return maze
-
-    def generate_maze(self,):
-        '''
-        Generate mazes with the number specified by total_samples. 
-        Each maze is generated with a different random seed to ensure diversity. 
-        The generated mazes are stored in an array for later use.
-        '''
-        mazes = np.empty((self.total_samples, self.height, self.width), dtype=np.int8)
-        for i in tqdm(range(self.total_samples), desc="Generating mazes"):
-            maze = self._generate_maze(seed=i)
-            mazes[i] = maze
-        print(f"Generated {self.total_samples} mazes of size {self.width}x{self.height}.")
-        self.mazes = filter_repeated_mazes(mazes)
-        print(f"Filtered to {len(self.mazes)} unique mazes after removing duplicates.")
 
 
 if __name__ == "__main__":
-    os.mkdir("mazes_pictures-7x7") if not os.path.exists("mazes_pictures-7x7") else None
-    os.chdir("mazes_pictures-7x7")
-    env = Maze(width=7, height=7, total_samples=10)
-    for i, maze in enumerate(env.mazes):
-        plot_maze(maze, show=False, save_path=f"maze_{i}.png")
+    from visualization import plot_maze
+
+    #os.mkdir("mazes_pictures-4x4") if not os.path.exists("mazes_pictures-4x4") else None
+    #os.chdir("mazes_pictures-4x4")
+    env = Maze(width=7, height=7)
+    print(f"Total number of mazes generated: {len(env.pathfinding())}")
+    #for i, maze in enumerate(env.evaluation_mazes):
+    #    plot_maze(maze, show=False, save_path=f"maze_{i}.png")
