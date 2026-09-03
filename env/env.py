@@ -92,13 +92,30 @@ class Maze(gym.Env):
             random_state=random_state,
         )
 
+    def reset(self, seed=None, is_evaluation=False):
+        """
+        Sample a maze from the training set or evaluation set.
+        """
+        if is_evaluation:
+            # Sample from the evaluation set
+            pass
+        else:
+            # Sample from the training set
+            pass
 
+    def step(self, action):
+        """
+        Execute the action in the environment and return the next state, reward, done, and info.
+        """
+        pass
+    
 if __name__ == "__main__":
     from visualization import plot_maze
 
     #os.mkdir("mazes_pictures-4x4") if not os.path.exists("mazes_pictures-4x4") else None
     #os.chdir("mazes_pictures-4x4")
-    env = Maze(width=7, height=7)
-    print(f"Total number of mazes generated: {len(env.pathfinding())}")
+    #env = Maze(width=6, height=6) # Total number of mazes generated: 669072
+    #env = Maze(width=7, height=7) # Total number of mazes generated: 23093748
+    #print(f"Total number of mazes generated: {len(env.pathfinding())}")
     #for i, maze in enumerate(env.evaluation_mazes):
     #    plot_maze(maze, show=False, save_path=f"maze_{i}.png")
