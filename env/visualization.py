@@ -25,7 +25,9 @@ def plot_maze(maze, ax=None, *, show=True, save_path=None):
 
     Expected values are 0 for a passage/path, 1 for a wall, 2 for the agent,
     and 3 for the goal. The function returns ``(figure, axes)`` so callers can
-    further customize or test the plot.
+    further customize or test the plot. Figures created only for file export
+    are closed after saving to keep large batches from exhausting graphics
+    memory.
 
     Args:
         maze: Two-dimensional array-like maze grid.
@@ -91,5 +93,7 @@ def plot_maze(maze, ax=None, *, show=True, save_path=None):
 
     if show:
         plt.show()
+    elif save_path is not None and owns_figure:
+        plt.close(figure)
 
     return figure, ax
