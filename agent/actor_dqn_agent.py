@@ -8,6 +8,7 @@ from typing import Any, Sequence
 
 import numpy as np
 import torch
+from tqdm import tqdm
 from torch import nn
 
 try:
@@ -41,16 +42,19 @@ class ActorDQNAgent(DQNAgent):
         total_timesteps: int, 
         environment: Any,
         eval_environment: Any,
+        actor_eval_environment: Any,
         eval_num_episodes: int = 10, 
         max_episode_steps: int|None = 100_000,
         evaluation_frequency: int | None = None,
-        actor_eval_environment = None,
     ):
         '''
         I use two different env for different models, to ensure they are evaluated in the same episode sequence.
+
         If we use only one eval environment, for both models, env will give different episodes to two models, causing
         multi-variable situation.
+
         Use two independent envs can ensure two model are evaluated in the same episode sequence.
+
         Args:
             eval_environment: evaluation env for normal dqn
             actor_eval_environment: evaluation env for actor dqn
@@ -94,8 +98,9 @@ class ActorDQNAgent(DQNAgent):
 
             state, _ = _reset_environment(self.environment, evaluation=False)
             episode_steps = 0
-    
-            for step in range(self.total_timesteps):
+
+            bar = tqdm(range(self.total_timesteps), desc="Running experiments")
+            for step in bar:
                 next_state, episode_ended, _, _ = self.rollout(self.environment, state)
                 update_result = self.update()
                 if update_result is None:

@@ -45,6 +45,7 @@ def create_environments(width: int, height: int, seed: int, logger) -> tuple[Maz
     """Create independent environments backed by one generated maze dataset."""
     training_environment = Maze(width=width, height=height)
     evaluation_environment = Maze(width=width, height=height)
+    actor_eval_environment = Maze(width=width, height=height)
 
     # Generation is deterministic for a seed and can be expensive. Both
     # environments may share these arrays because reset() copies a sampled maze
@@ -58,11 +59,14 @@ def create_environments(width: int, height: int, seed: int, logger) -> tuple[Maz
     training_environment.generate_maze(seed=seed)
     evaluation_environment.training_mazes = training_environment.training_mazes
     evaluation_environment.evaluation_mazes = training_environment.evaluation_mazes
+    actor_eval_environment.training_mazes = training_environment.training_mazes
+    actor_eval_environment.evaluation_mazes = training_environment.evaluation_mazes
 
     # Seed each environment's independent Gymnasium random-number generator.
     training_environment.reset(seed=seed, options={"is_evaluation": False})
     evaluation_environment.reset(seed=seed + 1, options={"is_evaluation": True})
-    return training_environment, evaluation_environment
+    actor_eval_environment.reset(seed=seed + 1, options={"is_evaluation": True})
+    return training_environment, evaluation_environment, actor_eval_environment
 
 
 def format_metrics(name: str, metrics: tuple[float, float, float]) -> str:
@@ -83,7 +87,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
 
-    training_environment, evaluation_environment = create_environments(
+    training_environment, evaluation_environment, actor_eval_environment = create_environments(
         width=args.width,
         height=args.height,
         seed=args.seed,
@@ -106,6 +110,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         eval_num_episodes=args.evaluation_episodes,
         max_episode_steps=args.max_episode_steps,
         evaluation_frequency=args.evaluation_frequency,
+        actor_eval_environment=actor_eval_environment,
     )
 
     try:
@@ -121,6 +126,7 @@ def main(argv: Sequence[str] | None = None) -> None:
             agent.tensorboard_writer.close()
         training_environment.close()
         evaluation_environment.close()
+        actor_eval_environment.close()
 
 
 if __name__ == "__main__":
