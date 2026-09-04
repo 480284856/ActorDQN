@@ -14,6 +14,7 @@ from agent.actor_dqn_agent import ActorDQNAgent
 from env.env import Maze
 
 
+
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     """Parse command-line options for a training run."""
     parser = argparse.ArgumentParser(
@@ -21,12 +22,13 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--width", type=int, default=5)
     parser.add_argument("--height", type=int, default=5)
-    parser.add_argument("--timesteps", type=int, default=10_000)
-    parser.add_argument("--max-episode-steps", type=int, default=100)
-    parser.add_argument("--evaluation-frequency", type=int, default=1_00)
+    parser.add_argument("--timesteps", type=int, default=1000_000)
+    parser.add_argument("--max-episode-steps", type=int, default=10_000)
+    parser.add_argument("--max-episode-steps-eval", type=int, default=25)
+    parser.add_argument("--evaluation-frequency", type=int, default=10000)
     parser.add_argument("--evaluation-episodes", type=int, default=20)
-    parser.add_argument("--batch-size", type=int, default=64)
-    parser.add_argument("--learning-starts", type=int, default=64)
+    parser.add_argument("--batch-size", type=int, default=256)
+    parser.add_argument("--learning-starts", type=int, default=2048)
     parser.add_argument("--replay-capacity", type=int, default=50_000)
     parser.add_argument("--learning-rate", type=float, default=1e-3)
     parser.add_argument("--gamma", type=float, default=0.99)
@@ -109,6 +111,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         eval_environment=evaluation_environment,
         eval_num_episodes=args.evaluation_episodes,
         max_episode_steps=args.max_episode_steps,
+        max_episode_steps_eval=args.max_episode_steps_eval,
         evaluation_frequency=args.evaluation_frequency,
         actor_eval_environment=actor_eval_environment,
     )

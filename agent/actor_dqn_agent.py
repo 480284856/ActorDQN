@@ -34,8 +34,8 @@ class ActorDQNAgent(DQNAgent):
         replay_capacity: int = 100_000,
         batch_size: int = 64,
         learning_starts: int | None = None,
-        target_update_frequency: int = 100,
-        gradient_clip: float | None = 100.0,
+        target_update_frequency: int = 2000,
+        gradient_clip: float | None = 10.0,
         device: str | torch.device | None = None,
         seed: int | None = None,
 
@@ -45,6 +45,7 @@ class ActorDQNAgent(DQNAgent):
         actor_eval_environment: Any,
         eval_num_episodes: int = 10, 
         max_episode_steps: int|None = 100_000,
+        max_episode_steps_eval: int|None = None,
         evaluation_frequency: int | None = None,
     ):
         '''
@@ -77,6 +78,7 @@ class ActorDQNAgent(DQNAgent):
             environment=environment,
             eval_num_episodes=eval_num_episodes,
             max_episode_steps=max_episode_steps,
+            max_episode_steps_eval=max_episode_steps_eval,
             evaluation_frequency=evaluation_frequency,
             eval_environment=eval_environment,
         )
@@ -246,8 +248,8 @@ class ActorDQNAgent(DQNAgent):
             raise ValueError("num_episodes must be positive")
         step_limit = (
             -1
-            if self.max_episode_steps is None
-            else self.max_episode_steps
+            if self.max_episode_steps_eval is None
+            else self.max_episode_steps_eval
         )
 
         returns: list[float] = []

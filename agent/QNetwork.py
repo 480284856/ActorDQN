@@ -54,6 +54,7 @@ def _build_mlp_layers(layer_widths: Sequence[int]) -> list[nn.Module]:
         zip(layer_widths, layer_widths[1:])
     ):
         layers.append(nn.Linear(input_width, output_width))
+        layers.append(nn.LayerNorm(output_width))
         if index < len(layer_widths) - 2:
             layers.append(nn.ReLU())
     return layers
