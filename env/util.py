@@ -59,7 +59,7 @@ def generate_all_single_solution_mazes(width: int, height: int) -> np.ndarray:
 def generate_maze_variations(
     mazes: np.ndarray,
     expected_shape: tuple[int, int] | None = None,
-    random_state: int | None = None,
+    random_state: int = 42,
 ) -> np.ndarray:
     """Create one randomized, solution-preserving variation of each maze.
 
