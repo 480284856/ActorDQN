@@ -20,23 +20,32 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Train the Actor-DQN agent on generated mazes."
     )
-    parser.add_argument("--width", type=int, default=5)
-    parser.add_argument("--height", type=int, default=5)
-    parser.add_argument("--timesteps", type=int, default=1000_000)
+    parser.add_argument("--width", type=int, default=4)
+    parser.add_argument("--height", type=int, default=4)
+    parser.add_argument("--timesteps", type=int, default=20_000_000)
     parser.add_argument("--max-episode-steps", type=int, default=10_000)
-    parser.add_argument("--max-episode-steps-eval", type=int, default=25)
+    parser.add_argument("--max-episode-steps-eval", type=int, default=16)
     parser.add_argument("--evaluation-frequency", type=int, default=10000)
-    parser.add_argument("--evaluation-episodes", type=int, default=20)
-    parser.add_argument("--batch-size", type=int, default=256)
+    parser.add_argument("--evaluation-episodes", type=int, default=100)
+    parser.add_argument("--batch-size", type=int, default=64)
     parser.add_argument("--learning-starts", type=int, default=2048)
-    parser.add_argument("--replay-capacity", type=int, default=50_000)
+    parser.add_argument("--replay-capacity", type=int, default=500_000)
     parser.add_argument("--learning-rate", type=float, default=1e-3)
     parser.add_argument("--gamma", type=float, default=0.99)
-    parser.add_argument("--exploration-rate", type=float, default=0.1)
+    parser.add_argument("--epsilon-start", type=float, default=1.0)
+    parser.add_argument("--epsilon-end", type=float, default=0.05)
+    parser.add_argument("--epsilon-decay", type=float, default=10000.0)
+    parser.add_argument("--tensorboard_log_dir", type=str, default="logs/dqn3")
+    parser.add_argument(
+        "--tau",
+        type=float,
+        default=0.005,
+        help="Fraction of online-network weights mixed into the target per update.",
+    )
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument(
         "--device",
-        choices=("cpu", "cuda"),
+        choices=("cpu", "cuda", "mps"),
         default=None,
         help="Training device (default: CUDA when available, otherwise CPU).",
     )
@@ -100,7 +109,10 @@ def main(argv: Sequence[str] | None = None) -> None:
         output_dim=training_environment.action_space.n,
         learning_rate=args.learning_rate,
         gamma=args.gamma,
-        exploration_rate=args.exploration_rate,
+        epsilon_start=args.epsilon_start,
+        epsilon_end=args.epsilon_end,
+        epsilon_decay=args.epsilon_decay,
+        tau=args.tau,
         replay_capacity=args.replay_capacity,
         batch_size=args.batch_size,
         learning_starts=args.learning_starts,
@@ -114,6 +126,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         max_episode_steps_eval=args.max_episode_steps_eval,
         evaluation_frequency=args.evaluation_frequency,
         actor_eval_environment=actor_eval_environment,
+        tensorboard_log_dir=args.tensorboard_log_dir,
     )
 
     try:
