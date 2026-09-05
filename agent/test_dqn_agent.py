@@ -1,5 +1,6 @@
 """Focused tests for the Q-network and DQN module boundaries."""
 
+import math
 import unittest
 
 import numpy as np
@@ -54,16 +55,26 @@ class QNetworkTests(unittest.TestCase):
 
 class DQNAgentTests(unittest.TestCase):
     def make_agent(self, **overrides):
+        environment = OneStepEnvironment()
         arguments = {
             "input_dim": 2,
             "output_dim": 2,
             "hidden_dims": (),
-            "exploration_rate": 0.0,
+            "epsilon_start": 0.0,
+            "epsilon_end": 0.0,
+            "epsilon_decay": 10.0,
             "batch_size": 1,
             "replay_capacity": 4,
             "target_update_frequency": 1,
+            "tau": 0.25,
             "device": "cpu",
             "seed": 4,
+            "total_timesteps": 3,
+            "environment": environment,
+            "eval_environment": environment,
+            "eval_num_episodes": 3,
+            "max_episode_steps": 1,
+            "max_episode_steps_eval": 1,
         }
         arguments.update(overrides)
         return DQNAgent(**arguments)
@@ -76,6 +87,45 @@ class DQNAgentTests(unittest.TestCase):
         ):
             torch.testing.assert_close(online_parameter, target_parameter)
             self.assertFalse(target_parameter.requires_grad)
+
+    def test_epsilon_decays_exponentially_with_action_selections(self):
+        agent = self.make_agent(
+            epsilon_start=1.0,
+            epsilon_end=0.1,
+            epsilon_decay=10.0,
+        )
+
+        self.assertEqual(agent._epsilon_threshold(), 1.0)
+        agent.steps_done = 10
+        self.assertAlmostEqual(
+            agent._epsilon_threshold(),
+            0.1 + (1.0 - 0.1) * math.exp(-1.0),
+        )
+
+    def test_only_training_action_selection_advances_epsilon(self):
+        agent = self.make_agent()
+        state = np.zeros(2, dtype=np.float32)
+
+        agent.action_selection(state)
+        self.assertEqual(agent.steps_done, 1)
+
+        agent.action_selection(state, greedy=True)
+        self.assertEqual(agent.steps_done, 1)
+
+    def test_target_update_uses_polyak_averaging(self):
+        agent = self.make_agent(tau=0.25)
+        with torch.no_grad():
+            for parameter in agent.q_network.parameters():
+                parameter.fill_(10.0)
+            for parameter in agent.target_network.parameters():
+                parameter.fill_(2.0)
+
+        agent.update_target_network()
+
+        for target_parameter in agent.target_network.parameters():
+            torch.testing.assert_close(
+                target_parameter, torch.full_like(target_parameter, 4.0)
+            )
 
     def test_terminal_bellman_target_does_not_bootstrap(self):
         agent = self.make_agent(gamma=0.5)
@@ -95,20 +145,22 @@ class DQNAgentTests(unittest.TestCase):
         agent = self.make_agent()
         environment = OneStepEnvironment()
 
-        agent.train(total_timesteps=3, training_env=environment)
+        agent.environment = environment
+        agent.train()
 
         self.assertEqual(agent.total_steps, 3)
         self.assertEqual(len(agent.replay_buffer), 3)
         self.assertEqual(agent.update_steps, 3)
 
     def test_evaluation_is_greedy_and_reports_metrics(self):
-        agent = self.make_agent(exploration_rate=1.0)
+        agent = self.make_agent(epsilon_start=1.0, epsilon_end=1.0)
         with torch.no_grad():
             agent.q_network.model[0].weight.zero_()
             agent.q_network.model[0].bias.copy_(torch.tensor([0.0, 1.0]))
         environment = OneStepEnvironment()
 
-        metrics = agent.evaluation(environment, num_episodes=3)
+        agent.eval_environment = environment
+        metrics = agent.evaluation()
 
         self.assertEqual(metrics, (1.0, 1.0, 1.0))
         self.assertTrue(
