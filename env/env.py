@@ -261,7 +261,7 @@ class Maze(gym.Env):
             np.array_equal(self._agent_location, self._goal_location)
         )
         truncated = False
-        reward = 1.0 if terminated else -0.01
+        reward = 1.0 if terminated else -0.01 if not invalid_move else -0.05
 
         return (
             self._get_observation(),

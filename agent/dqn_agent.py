@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections import deque
 from dataclasses import dataclass
+import math
 from numbers import Integral
 import random
 from typing import Any, Sequence
@@ -85,11 +86,14 @@ class DQNAgent:
         hidden_dims: Sequence[int] = (128, 128),
         learning_rate: float = 1e-3,
         gamma: float = 0.99,
-        exploration_rate: float = 0.1,
+        epsilon_start: float = 1.0,
+        epsilon_end: float = 0.05,
+        epsilon_decay: float = 1000.0,
         replay_capacity: int = 100_000,
         batch_size: int = 64,
         learning_starts: int | None = None,
-        target_update_frequency: int = 2000,
+        target_update_frequency: int = 1,
+        tau: float = 0.005,
         gradient_clip: float | None = 10.0,
         device: str | torch.device | None = None,
         seed: int | None = None,
@@ -101,12 +105,20 @@ class DQNAgent:
         max_episode_steps: int|None = 100_000,
         max_episode_steps_eval: int|None = None,
         evaluation_frequency: int | None = None,
+
+        tensorboard_log_dir:str = "logs/dqn_maze",
     ) -> None:
         '''
         Args:
             input_dim: The shape of one **flattened** observation, or the number of features.
             output_dim: The number of discrete actions.
             hidden_dims: The number of units in each hidden layer.
+            epsilon_start: Exploration probability at the start of training.
+            epsilon_end: Minimum exploration probability approached over time.
+            epsilon_decay: Exponential-decay time constant measured in action
+                selections.
+            tau: The fraction of online-network weights mixed into the target
+                network after each scheduled target update.
             
             total_timesteps: The total number of timesteps to call env.step().
             eval_environment: Another new env but used for evaluation.
@@ -118,7 +130,10 @@ class DQNAgent:
             output_dim=output_dim,
             learning_rate=learning_rate,
             gamma=gamma,
-            exploration_rate=exploration_rate,
+            epsilon_start=epsilon_start,
+            epsilon_end=epsilon_end,
+            epsilon_decay=epsilon_decay,
+            tau=tau,
             batch_size=batch_size,
             target_update_frequency=target_update_frequency,
             max_episode_steps=max_episode_steps,
@@ -140,7 +155,9 @@ class DQNAgent:
         )
         self.q_network = QNetwork(input_dim, output_dim, hidden_dims).to(self.device)
         self.target_network = QNetwork(input_dim, output_dim, hidden_dims).to(self.device)
-        self.update_target_network()
+        # The target must start as an exact copy. Later updates use Polyak
+        # averaging controlled by ``tau``.
+        self.target_network.load_state_dict(self.q_network.state_dict())
         self.target_network.eval()
         self.target_network.requires_grad_(False)
 
@@ -152,19 +169,23 @@ class DQNAgent:
 
         self.output_dim = output_dim
         self.gamma = gamma
-        self.exploration_rate = exploration_rate
+        self.epsilon_start = epsilon_start
+        self.epsilon_end = epsilon_end
+        self.epsilon_decay = epsilon_decay
+        self.steps_done = 0
         self.batch_size = batch_size
         self.learning_starts = batch_size if learning_starts is None else learning_starts
         if self.learning_starts < batch_size:
             raise ValueError("learning_starts must be at least batch_size")
         self.target_update_frequency = target_update_frequency
+        self.tau = tau
         
         self.gradient_clip = gradient_clip
         self._rng = random.Random(seed)
         self.total_steps = 0
         self.update_steps = 0
 
-        self.tensorboard_writer =  SummaryWriter(log_dir="logs/dqn_maze")
+        self.tensorboard_writer =  SummaryWriter(log_dir=tensorboard_log_dir)
 
         self.total_timesteps = total_timesteps
         self.environment = environment
@@ -236,12 +257,22 @@ class DQNAgent:
         *,
         greedy: bool = False,
     ) -> int:
-        """Select with the fixed exploration rate, or greedily for evaluation."""
-        exploration_rate = 0.0 if greedy else self.exploration_rate
-        if self._rng.random() < exploration_rate:
+        """Select epsilon-greedily with exponential decay, or greedily for evaluation."""
+        if greedy:
+            return self._greedy_action(state)
+
+        epsilon_threshold = self._epsilon_threshold()
+        self.steps_done += 1
+        if self._rng.random() < epsilon_threshold:
             # Randomly select an action with uniform probability.
             return self._rng.randrange(self.output_dim)
         return self._greedy_action(state)
+
+    def _epsilon_threshold(self) -> float:
+        """Return the exploration probability for the current training step."""
+        return self.epsilon_end + (
+            self.epsilon_start - self.epsilon_end
+        ) * math.exp(-1.0 * self.steps_done / self.epsilon_decay)
 
     def rollout(
         self,
@@ -338,8 +369,16 @@ class DQNAgent:
         )
 
     def update_target_network(self) -> None:
-        """Copy all online-network weights into the target network."""
-        self.target_network.load_state_dict(self.q_network.state_dict())
+        """Move the target network a ``tau`` fraction toward the online network."""
+        target_state_dict = self.target_network.state_dict()
+        online_state_dict = self.q_network.state_dict()
+        with torch.no_grad():
+            for key in online_state_dict:
+                target_state_dict[key] = (
+                    online_state_dict[key] * self.tau
+                    + target_state_dict[key] * (1.0 - self.tau)
+                )
+        self.target_network.load_state_dict(target_state_dict)
 
     def _greedy_action(self, state: Any) -> int:
         """Select the action with the largest online-network Q-value."""
@@ -440,5 +479,11 @@ def _validate_hyperparameters(**values: Any) -> None:
         raise ValueError("learning_rate must be positive")
     if not 0.0 <= values["gamma"] <= 1.0:
         raise ValueError("gamma must be between 0 and 1")
-    if not 0.0 <= values["exploration_rate"] <= 1.0:
-        raise ValueError("exploration_rate must be between 0 and 1")
+    if not 0.0 <= values["epsilon_end"] <= values["epsilon_start"] <= 1.0:
+        raise ValueError(
+            "epsilon values must satisfy 0 <= epsilon_end <= epsilon_start <= 1"
+        )
+    if values["epsilon_decay"] <= 0:
+        raise ValueError("epsilon_decay must be positive")
+    if not 0.0 <= values["tau"] <= 1.0:
+        raise ValueError("tau must be between 0 and 1")

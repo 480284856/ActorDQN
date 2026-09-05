@@ -30,11 +30,14 @@ class ActorDQNAgent(DQNAgent):
         hidden_dims: Sequence[int] = (128, 128),
         learning_rate: float = 1e-3,
         gamma: float = 0.99,
-        exploration_rate: float = 0.1,
+        epsilon_start: float = 1.0,
+        epsilon_end: float = 0.05,
+        epsilon_decay: float = 1000.0,
         replay_capacity: int = 100_000,
         batch_size: int = 64,
         learning_starts: int | None = None,
-        target_update_frequency: int = 2000,
+        target_update_frequency: int = 1,
+        tau: float = 0.005,
         gradient_clip: float | None = 10.0,
         device: str | torch.device | None = None,
         seed: int | None = None,
@@ -47,6 +50,8 @@ class ActorDQNAgent(DQNAgent):
         max_episode_steps: int|None = 100_000,
         max_episode_steps_eval: int|None = None,
         evaluation_frequency: int | None = None,
+
+        tensorboard_log_dir:str = "logs/dqn_maze",
     ):
         '''
         I use two different env for different models, to ensure they are evaluated in the same episode sequence.
@@ -66,11 +71,14 @@ class ActorDQNAgent(DQNAgent):
             hidden_dims=hidden_dims,
             learning_rate=learning_rate,
             gamma=gamma,
-            exploration_rate=exploration_rate,
+            epsilon_start=epsilon_start,
+            epsilon_end=epsilon_end,
+            epsilon_decay=epsilon_decay,
             replay_capacity=replay_capacity,
             batch_size=batch_size,
             learning_starts=learning_starts,
             target_update_frequency=target_update_frequency,
+            tau=tau,
             gradient_clip=gradient_clip,
             device=device,
             seed=seed,
@@ -81,6 +89,7 @@ class ActorDQNAgent(DQNAgent):
             max_episode_steps_eval=max_episode_steps_eval,
             evaluation_frequency=evaluation_frequency,
             eval_environment=eval_environment,
+            tensorboard_log_dir=tensorboard_log_dir,
         )
 
         self.actor_q_network = QNetwork(input_dim, output_dim, hidden_dims).to(self.device)
@@ -232,9 +241,13 @@ class ActorDQNAgent(DQNAgent):
         *,
         greedy: bool = False,
     ) -> int:
-        """Select with the fixed exploration rate, or greedily for evaluation."""
-        exploration_rate = 0.0 if greedy else self.exploration_rate
-        if self._rng.random() < exploration_rate:
+        """Select epsilon-greedily with exponential decay, or greedily for evaluation."""
+        if greedy:
+            return self._actor_greedy_action(state)
+
+        epsilon_threshold = self._epsilon_threshold()
+        self.steps_done += 1
+        if self._rng.random() < epsilon_threshold:
             # Randomly select an action with uniform probability.
             return self._rng.randrange(self.output_dim)
         return self._actor_greedy_action(state)
@@ -294,4 +307,3 @@ class ActorDQNAgent(DQNAgent):
             float(np.mean(step_counts)),
             successes / self.eval_num_episodes,
         )        
-
