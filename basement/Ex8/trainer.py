@@ -1,6 +1,6 @@
 import gymnasium as gym
-from agent import DQNAgent
-from replay_buffer import ReplayMemory
+from ActorDQN.basement.Ex8.agent import DQNAgent
+from ActorDQN.basement.Ex8.replay_buffer import ReplayMemory
 from tqdm import tqdm
 import torch
 

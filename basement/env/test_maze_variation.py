@@ -8,8 +8,8 @@ try:
     from .env import Maze
     from .util import EMPTY, GOAL, PLAYER, WALL, find_distances, find_shortest_path
 except ImportError:  # Support running the test file from the env directory.
-    from env import Maze
-    from util import EMPTY, GOAL, PLAYER, WALL, find_distances, find_shortest_path
+    from ActorDQN.basement.env.env import Maze
+    from ActorDQN.basement.env.util import EMPTY, GOAL, PLAYER, WALL, find_distances, find_shortest_path
 
 
 class MazeVariationTests(unittest.TestCase):

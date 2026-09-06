@@ -9,7 +9,7 @@ from matplotlib.colors import ListedColormap
 try:
     from .util import EMPTY, GOAL, PLAYER, WALL
 except ImportError:  # Support importing this module when env.py is run directly.
-    from util import EMPTY, GOAL, PLAYER, WALL
+    from ActorDQN.basement.env.util import EMPTY, GOAL, PLAYER, WALL
 
 
 MAZE_COLORS = {

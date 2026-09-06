@@ -15,8 +15,8 @@ try:
     from .QNetwork import QNetwork
     from .dqn_agent import DQNAgent, _reset_environment
 except ImportError:  # Support running this module directly.
-    from QNetwork import QNetwork
-    from dqn_agent import DQNAgent, _reset_environment
+    from ActorDQN.basement.agent.QNetwork import QNetwork
+    from ActorDQN.basement.agent.dqn_agent import DQNAgent, _reset_environment
 
 
 class ActorDQNAgent(DQNAgent):
@@ -27,7 +27,7 @@ class ActorDQNAgent(DQNAgent):
         input_dim: int | Sequence[int],
         output_dim: int,
         *,
-        hidden_dims: Sequence[int] = (128, 128),
+        hidden_dims: Sequence[int] = (128, 128,64,32),
         learning_rate: float = 1e-3,
         gamma: float = 0.99,
         epsilon_start: float = 1.0,

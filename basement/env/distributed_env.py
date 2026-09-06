@@ -1,4 +1,4 @@
-from env import Maze
+from ActorDQN.basement.env.env import Maze
 import gymnasium as gym
 from functools import partial
 

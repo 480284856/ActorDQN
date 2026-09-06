@@ -14,7 +14,7 @@ try:
         generate_maze_variations,
     )
 except ImportError:  # Support running this file directly.
-    from util import (
+    from ActorDQN.basement.env.util import (
         EMPTY,
         GOAL,
         PLAYER,
@@ -272,7 +272,7 @@ class Maze(gym.Env):
         )
     
 if __name__ == "__main__":
-    from visualization import plot_maze
+    from ActorDQN.basement.env.visualization import plot_maze
 
     #os.mkdir("mazes_pictures-4x4") if not os.path.exists("mazes_pictures-4x4") else None
     #os.chdir("mazes_pictures-4x4")

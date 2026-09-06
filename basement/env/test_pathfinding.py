@@ -9,8 +9,8 @@ try:
     from .env import Maze
     from .util import EMPTY, GOAL, PLAYER, WALL
 except ImportError:  # Support running the test file from the env directory.
-    from env import Maze
-    from util import EMPTY, GOAL, PLAYER, WALL
+    from ActorDQN.basement.env.env import Maze
+    from ActorDQN.basement.env.util import EMPTY, GOAL, PLAYER, WALL
 
 
 class PathfindingTests(unittest.TestCase):

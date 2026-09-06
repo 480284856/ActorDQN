@@ -16,7 +16,7 @@ from torch import nn
 try:
     from .QNetwork import QNetwork
 except ImportError:  # Support running this module directly.
-    from QNetwork import QNetwork
+    from ActorDQN.basement.agent.QNetwork import QNetwork
 
 from torch.utils.tensorboard import SummaryWriter
 

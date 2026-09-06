@@ -1,41 +1,65 @@
-"""Train and evaluate the Actor-DQN agent on the maze environment."""
+"""Train and evaluate the DQN agent on the maze environment."""
 
 from __future__ import annotations
 
 import logging
 import argparse
 import random
+import sys
+from pathlib import Path
 from typing import Sequence
 
+import gymnasium as gym
 import numpy as np
 import torch
 
-from agent.actor_dqn_agent import ActorDQNAgent
-from env.env import Maze
+# Allow direct execution from ActorDQN while importing its sibling package.
+if __package__ in (None, ""):
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-
+from IncompleteBaseline.algorithms.common.exploration_rate_calculation import StepDecay
+from IncompleteBaseline.algorithms.dqn.dqn_agent import DQNAgent
+from IncompleteBaseline.envs.procedual_maze.env import Maze
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     """Parse command-line options for a training run."""
     parser = argparse.ArgumentParser(
-        description="Train the Actor-DQN agent on generated mazes."
+        description="Train the DQN agent on generated mazes."
     )
     parser.add_argument("--width", type=int, default=4)
     parser.add_argument("--height", type=int, default=4)
-    parser.add_argument("--timesteps", type=int, default=20_000_000)
-    parser.add_argument("--max-episode-steps", type=int, default=10_000)
-    parser.add_argument("--max-episode-steps-eval", type=int, default=16)
-    parser.add_argument("--evaluation-frequency", type=int, default=10000)
-    parser.add_argument("--evaluation-episodes", type=int, default=100)
-    parser.add_argument("--batch-size", type=int, default=64)
+    parser.add_argument("--total-time-steps", type=int, default=20_000_000, help="The total time to call env.step(action)")
+    parser.add_argument("--max-episode-steps", 
+                        type=int, default=10_000, 
+                        help="The maximum step to work on an episode in training. " \
+                        "The episode will be truncated if the step limit used is larger than this parameter.")
+    parser.add_argument("--max-episode-steps-eval", 
+                        type=int, 
+                        default=16, 
+                        help="The maximum step to work on an episode in evaluation. " \
+                            "The episode will be truncated if the step limit used is larger than this parameter.")
+    parser.add_argument("--evaluation-episodes", type=int, default=100, help="The number of episodes used to evaluate.")
+    parser.add_argument(
+        "--evaluation-frequency",
+        type=int,
+        default=10_000,
+        help="Evaluate every N training environment steps; 0 disables periodic evaluation.",
+    )
+    parser.add_argument(
+        "--tensorboard-log-dir", "--tensorboard_log_dir",
+        type=str,
+        default=None,
+        help="TensorBoard output directory (default: an automatic run directory under runs/).",
+    )
+    parser.add_argument("--batch-size", type=int, default=64, help="The size of data to sample in the replay buffer during each training")
     parser.add_argument("--learning-starts", type=int, default=2048)
     parser.add_argument("--replay-capacity", type=int, default=500_000)
-    parser.add_argument("--learning-rate", type=float, default=1e-3)
     parser.add_argument("--gamma", type=float, default=0.99)
     parser.add_argument("--epsilon-start", type=float, default=1.0)
     parser.add_argument("--epsilon-end", type=float, default=0.05)
-    parser.add_argument("--epsilon-decay", type=float, default=10000.0)
-    parser.add_argument("--tensorboard_log_dir", type=str, default="logs/dqn3")
+    parser.add_argument("--epsilon-decay", type=float, default=200_000)
+    parser.add_argument("--training-freq", type=int, default=4)
+    parser.add_argument("--grad-step-per-train", type=int, default=4)
     parser.add_argument(
         "--tau",
         type=float,
@@ -43,54 +67,55 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="Fraction of online-network weights mixed into the target per update.",
     )
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument(
-        "--device",
-        choices=("cpu", "cuda", "mps"),
-        default=None,
-        help="Training device (default: CUDA when available, otherwise CPU).",
+    args = parser.parse_args(argv)
+    return args
+
+
+class TensorObservation(gym.ObservationWrapper):
+    """Provide the baseline's single-environment float32 tensor input."""
+
+    def __init__(self, env: Maze):
+        super().__init__(env)
+        input_dim = int(np.prod(env.observation_space.shape))
+        self.observation_space = gym.spaces.Box(
+            low=0.0, high=1.0, shape=(1, input_dim), dtype=np.float32
+        )
+
+    def observation(self, observation):
+        return torch.as_tensor(observation, dtype=torch.float32).reshape(1, -1)
+
+
+def create_environments(
+    width: int, height: int, seed: int, logger,
+    max_episode_steps: int, max_episode_steps_eval: int,
+) -> tuple[TensorObservation, TensorObservation]:
+    """Create independent environments sharing one generated maze dataset."""
+    training_environment = Maze(
+        width=width, height=height,
+        train_step_limitation=max_episode_steps,
+        eval_step_limitation=max_episode_steps_eval,
     )
-    return parser.parse_args(argv)
-
-
-def create_environments(width: int, height: int, seed: int, logger) -> tuple[Maze, Maze]:
-    """Create independent environments backed by one generated maze dataset."""
-    training_environment = Maze(width=width, height=height)
-    evaluation_environment = Maze(width=width, height=height)
-    actor_eval_environment = Maze(width=width, height=height)
-
-    # Generation is deterministic for a seed and can be expensive. Both
-    # environments may share these arrays because reset() copies a sampled maze
-    # before changing it.
-    maze_generator_code = training_environment.generate_maze.__func__.__code__
-    logger.warning(
-        "Maze generation is starting and may take a while (%s:%d).",
-        maze_generator_code.co_filename,
-        maze_generator_code.co_firstlineno,
+    evaluation_environment = Maze(
+        width=width, height=height,
+        train_step_limitation=max_episode_steps_eval,
+        eval_step_limitation=max_episode_steps_eval,
     )
+    logger.info("Generating maze dataset for %sx%s mazes.", width, height)
     training_environment.generate_maze(seed=seed)
+    logger.info(f"The size of a training set is {training_environment.training_mazes.shape[0]}")
+    logger.info(f"The size of a evaluation set is {training_environment.evaluation_mazes.shape[0]}")
     evaluation_environment.training_mazes = training_environment.training_mazes
     evaluation_environment.evaluation_mazes = training_environment.evaluation_mazes
-    actor_eval_environment.training_mazes = training_environment.training_mazes
-    actor_eval_environment.evaluation_mazes = training_environment.evaluation_mazes
 
-    # Seed each environment's independent Gymnasium random-number generator.
+    training_environment = TensorObservation(training_environment)
+    evaluation_environment = TensorObservation(evaluation_environment)
     training_environment.reset(seed=seed, options={"is_evaluation": False})
     evaluation_environment.reset(seed=seed + 1, options={"is_evaluation": True})
-    actor_eval_environment.reset(seed=seed + 1, options={"is_evaluation": True})
-    return training_environment, evaluation_environment, actor_eval_environment
-
-
-def format_metrics(name: str, metrics: tuple[float, float, float]) -> str:
-    """Format an evaluation result for the console."""
-    average_return, average_steps, success_rate = metrics
-    return (
-        f"{name}: return={average_return:.3f}, "
-        f"steps={average_steps:.1f}, success_rate={success_rate:.1%}"
-    )
-
+    return training_environment, evaluation_environment
 
 def main(argv: Sequence[str] | None = None) -> None:
-    """Run one reproducible Actor-DQN training experiment."""
+    """Run one reproducible DQN training experiment."""
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
     logger = logging.getLogger(__name__)
     args = parse_args(argv)
 
@@ -98,51 +123,45 @@ def main(argv: Sequence[str] | None = None) -> None:
     np.random.seed(args.seed)
     torch.manual_seed(args.seed)
 
-    training_environment, evaluation_environment, actor_eval_environment = create_environments(
+    training_environment, evaluation_environment = create_environments(
         width=args.width,
         height=args.height,
         seed=args.seed,
         logger=logger,
-    )
-    agent = ActorDQNAgent(
-        input_dim=training_environment.observation_space.shape,
-        output_dim=training_environment.action_space.n,
-        learning_rate=args.learning_rate,
-        gamma=args.gamma,
-        epsilon_start=args.epsilon_start,
-        epsilon_end=args.epsilon_end,
-        epsilon_decay=args.epsilon_decay,
-        tau=args.tau,
-        replay_capacity=args.replay_capacity,
-        batch_size=args.batch_size,
-        learning_starts=args.learning_starts,
-        device=args.device,
-        seed=args.seed,
-        total_timesteps=args.timesteps,
-        environment=training_environment,
-        eval_environment=evaluation_environment,
-        eval_num_episodes=args.evaluation_episodes,
         max_episode_steps=args.max_episode_steps,
         max_episode_steps_eval=args.max_episode_steps_eval,
-        evaluation_frequency=args.evaluation_frequency,
-        actor_eval_environment=actor_eval_environment,
-        tensorboard_log_dir=args.tensorboard_log_dir,
     )
-
     try:
-        logger.info(
-            f"Training on {args.width}x{args.height} mazes for "
-            f"{args.timesteps:,} timesteps using {agent.device}."
+        agent = DQNAgent(
+            input_dim=training_environment.observation_space.shape[1],
+            output_dim=training_environment.action_space.n,
+            seed=args.seed,
+            epsilon_strategy=StepDecay(
+                args.epsilon_start, args.epsilon_end, args.epsilon_decay
+            ),
+            replay_buffer_size=args.replay_capacity,
+            training_env=training_environment,
+            eval_env=evaluation_environment,
+            sample_batch_size=args.batch_size,
+            gamma=args.gamma,
+            tau=args.tau,
+            total_time_steps=args.total_time_steps,
+            learning_start=args.learning_starts,
+            training_freq=args.training_freq,
+            grad_step_per_train=args.grad_step_per_train,
+            num_eval_episodes=args.evaluation_episodes,
+            eval_freq=args.evaluation_frequency or None,
+            tensorboard_log_dir=args.tensorboard_log_dir,
         )
+        logger.info(
+            "Training DQN on %sx%s mazes for %s timesteps using CPU.",
+            args.width, args.height, args.total_time_steps,
+        )
+        logger.info("TensorBoard logs: %s", agent.tensorboard_writer.log_dir)
         agent.train()
-        logger.info(format_metrics("DQN", agent.evaluation(evaluation=True)))
-        logger.info(format_metrics("Actor-DQN", agent.actor_evaluation(evaluation=True)))
     finally:
-        if agent.tensorboard_writer is not None:
-            agent.tensorboard_writer.close()
         training_environment.close()
         evaluation_environment.close()
-        actor_eval_environment.close()
 
 
 if __name__ == "__main__":

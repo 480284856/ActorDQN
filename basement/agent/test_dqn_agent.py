@@ -10,8 +10,8 @@ try:
     from .QNetwork import QNetwork
     from .dqn_agent import DQNAgent
 except ImportError:  # Support discovery with ``-s agent``.
-    from QNetwork import QNetwork
-    from dqn_agent import DQNAgent
+    from ActorDQN.basement.agent.QNetwork import QNetwork
+    from ActorDQN.basement.agent.dqn_agent import DQNAgent
 
 
 class OneStepEnvironment:

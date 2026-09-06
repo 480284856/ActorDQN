@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 
 from tqdm import tqdm
 from env import GridWorldEnv
-from agent import DQNAgent
+from ActorDQN.basement.agent import DQNAgent
 from dqn import DQN
 
 def designGrid():

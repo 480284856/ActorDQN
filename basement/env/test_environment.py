@@ -8,8 +8,8 @@ try:
     from .env import Maze
     from .util import EMPTY, GOAL, PLAYER, WALL
 except ImportError:  # Support discovery with ``-s env``.
-    from env import Maze
-    from util import EMPTY, GOAL, PLAYER, WALL
+    from ActorDQN.basement.env.env import Maze
+    from ActorDQN.basement.env.util import EMPTY, GOAL, PLAYER, WALL
 
 
 DIAGRAM_MAZE = np.array(
