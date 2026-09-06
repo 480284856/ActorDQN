@@ -136,9 +136,6 @@ def main(argv: Sequence[str] | None = None) -> None:
             input_dim=training_environment.observation_space.shape[1],
             output_dim=training_environment.action_space.n,
             seed=args.seed,
-            epsilon_strategy=StepDecay(
-                args.epsilon_start, args.epsilon_end, args.epsilon_decay
-            ),
             replay_buffer_size=args.replay_capacity,
             training_env=training_environment,
             eval_env=evaluation_environment,

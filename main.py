@@ -17,7 +17,7 @@ import torch
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from IncompleteBaseline.algorithms.common.exploration_rate_calculation import StepDecay
+from IncompleteBaseline.algorithms.common.exploration_rate_calculation import ClassicalExploration,StepDecay
 from IncompleteBaseline.algorithms.dqn.dqn_agent import DQNAgent
 from IncompleteBaseline.envs.procedual_maze.env import Maze
 
@@ -67,6 +67,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="Fraction of online-network weights mixed into the target per update.",
     )
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--epsilon-strategy", type=str, choices=["StepDecay", "91Epsilon"], default="91Epsilon")
     args = parser.parse_args(argv)
     return args
 
@@ -131,14 +132,17 @@ def main(argv: Sequence[str] | None = None) -> None:
         max_episode_steps=args.max_episode_steps,
         max_episode_steps_eval=args.max_episode_steps_eval,
     )
+
+    epsilon_strategy = StepDecay(
+                args.epsilon_start, args.epsilon_end, args.epsilon_decay
+            ) if args.epsilon_strategy == "StepDecay" else ClassicalExploration()
+
     try:
         agent = DQNAgent(
             input_dim=training_environment.observation_space.shape[1],
             output_dim=training_environment.action_space.n,
             seed=args.seed,
-            epsilon_strategy=StepDecay(
-                args.epsilon_start, args.epsilon_end, args.epsilon_decay
-            ),
+            epsilon_strategy=epsilon_strategy,
             replay_buffer_size=args.replay_capacity,
             training_env=training_environment,
             eval_env=evaluation_environment,
