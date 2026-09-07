@@ -30,7 +30,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--height", type=int, default=4)
     parser.add_argument("--total-time-steps", type=int, default=20_000_000, help="The total time to call env.step(action)")
     parser.add_argument("--max-episode-steps", 
-                        type=int, default=100_000, 
+                        type=int, default=10_000, 
                         help="The maximum step to work on an episode in training. " \
                         "The episode will be truncated if the step limit used is larger than this parameter.")
     parser.add_argument("--max-episode-steps-eval", 
@@ -46,7 +46,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="Evaluate every N training environment steps; 0 disables periodic evaluation.",
     )
     parser.add_argument(
-        "--tensorboard-log-dir", "--tensorboard_log_dir",
+        "--tensorboard-log-dir",
         type=str,
         default=None,
         help="TensorBoard output directory (default: an automatic run directory under runs/).",
@@ -58,8 +58,8 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--epsilon-start", type=float, default=1.0)
     parser.add_argument("--epsilon-end", type=float, default=0.05)
     parser.add_argument("--epsilon-decay", type=float, default=200_000)
-    parser.add_argument("--training-freq", type=int, default=4)
-    parser.add_argument("--grad-step-per-train", type=int, default=4)
+    parser.add_argument("--training-freq", type=int, default=1)
+    parser.add_argument("--grad-step-per-train", type=int, default=1)
     parser.add_argument(
         "--tau",
         type=float,

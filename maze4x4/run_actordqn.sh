@@ -1,3 +1,5 @@
+# before run them use the package "IncompleteBaseline" with branch "rpdc_maze4x4"
+
 python main_actor.py --tensorboard-log-dir "../logs/actorqdn/maze4x4/v1" \
     --width 4 \
     --height 4 \
